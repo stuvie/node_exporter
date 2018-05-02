@@ -1,0 +1,59 @@
+#!/bin/bash
+
+tmpf=/tmp/monitors.$$
+logs=$HOME/work/log
+logs=/Users/steve/work/go/src/github.com/prometheus/node_exporter
+suffix=daemon
+
+exporter_args="--collector.netdev.ignored-devices=^(bridge|utun|gif|awd|p2p|stf|fw0|EHC|XHC) \
+      --collector.textfile.directory=text-data \
+      --collector.filesystem.ignored-mount-points=^/(dev|net|home|private|run)($|/) "
+
+usage() {
+	echo usage: monitors '[list | start | stop | restart]' && exit 1
+}
+
+list() {
+	psu all | egrep 'PID|prometheus|exporter|grafana' | grep -v grep
+	exit 0
+}
+
+if test `whoami` = root; then
+	echo must not be run as root
+	usage
+fi
+
+if test $# -lt 1; then
+	list
+fi
+
+case $1 in
+list|status)
+	list
+	;;
+stop|kill)
+	#zap prometheus exporter 
+	zap exporter 
+	;;
+start)
+	echo starting exporter on `shost` at `date`
+
+	strip node_exporter
+	cp node_exporter $HOME/work/ops/replace/darwin/node_exporter-sk
+	./node_exporter $exporter_args >> $logs/node-exporter-$suffix 2>&1 &
+
+	cd /servers/monitors/prometheus-2.2.1.darwin-amd64 || exit 2
+	#rm -rf data
+	#./prometheus >> $logs/prometheus-$suffix 2>&1 &
+
+	;;
+restart)
+	./monitors stop
+	./monitors start
+	./monitors status
+	;;
+*)
+	echo sub-command $1 unknown
+	usage
+	;;
+esac

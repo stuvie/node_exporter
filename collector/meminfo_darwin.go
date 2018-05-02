@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"github.com/prometheus/common/log"
 	"golang.org/x/sys/unix"
 )
 
@@ -46,14 +47,32 @@ func (c *meminfoCollector) getMemInfo() (map[string]float64, error) {
 	// Syscall removes terminating NUL which we need to cast to uint64
 	total := binary.LittleEndian.Uint64([]byte(totalb + "\x00"))
 
+	// aggregate some memory stats
+	available := vmstat.free_count + vmstat.inactive_count + vmstat.purgeable_count
+	gig := 1073741824.0
+
 	ps := C.natural_t(syscall.Getpagesize())
+	/*
+		log.Infof("****")
+		log.Debugf("darwin mem ps: %d", ps)
+		log.Infof("darwin mem total: %.3f Gig", float64(total)/gig)
+		log.Infof("darwin mem inactive: %.3f Gig", float64(ps*vmstat.inactive_count)/gig)
+		log.Infof("darwin mem active: %.3f Gig", float64(ps*vmstat.active_count)/gig)
+		log.Infof("darwin mem wired: %.3f Gig", float64(ps*vmstat.wire_count)/gig)
+		log.Infof("darwin mem free: %.1f Meg", float64(ps*vmstat.free_count)/1048576.0)
+		log.Infof("darwin mem zero filled: %.3f Gig", float64(ps*vmstat.zero_fill_count)/gig)
+		log.Infof("darwin mem reactivated: %.3f Gig", float64(ps*vmstat.reactivations)/gig)
+		log.Infof("darwin mem purgable: %.3f Gig", float64(ps*vmstat.purgeable_count)/gig)
+	*/
+	log.Debugf("darwin mem available: %.3f Gig", float64(ps*available)/gig)
 	return map[string]float64{
-		"active_bytes_total":      float64(ps * vmstat.active_count),
-		"inactive_bytes_total":    float64(ps * vmstat.inactive_count),
+		"Active_bytes":            float64(ps * vmstat.active_count),
+		"Inactive_bytes":          float64(ps * vmstat.inactive_count),
 		"wired_bytes_total":       float64(ps * vmstat.wire_count),
-		"free_bytes_total":        float64(ps * vmstat.free_count),
+		"MemFree_bytes":           float64(ps * vmstat.free_count),
 		"swapped_in_pages_total":  float64(ps * vmstat.pageins),
 		"swapped_out_pages_total": float64(ps * vmstat.pageouts),
-		"bytes_total":             float64(total),
+		"MemTotal_bytes":          float64(total),
+		"MemAvailable_bytes":      float64(ps * available),
 	}, nil
 }
